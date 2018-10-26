@@ -1,0 +1,260 @@
+=======================================================================================================
+-- Author		 : 	Jitendra Asawa, Pooja Modi, Humeil Makhija
+-- Roll No.		 :	BE/25007/15, BE/25022/15, BE/25046/15
+-- Create Date	 : 	08 Oct, 2018
+-- Topic		 :	Poverty And Vulnerability Analysis using Remote Sensing DataFrame
+-- Description   : 	Detection of land cover and high population density areas using
+					supervised learning algorithm in python on satellite image of 
+					Jaipur City
+-- Libraries used:	pandas, csv, math, time
+-- # Single Line Comment
+-- /* Multiple
+	  lines
+	  Comment */
+======================================================================================================
+
+import pandas as pd
+from collections import Counter
+import csv, time, math
+
+======================================================================================================
+-- Funtion Name: Minimum_Distance_Classification
+-- Parameters:
+--	 @data 	  - Dictionary of predefined (key, value) pairs
+--		        key   :- Class Name
+--			    value :- Class Color Code
+--	 @predict - Unclassified Color Code
+--
+-- Temporary variables:
+--	 @distances		 	- Stores euclidean distance of predict from each 
+--		   				  value corresponding to key
+--	 @euclidean_distance- Calculates Euclidean Distance
+--	 @votes				- Stores Euclidean Distances in Sorted order
+-- 	 @vote_result		- Stores the name of nearest class
+--
+-- Returns:		Class of the predict 
+======================================================================================================
+
+# Minimum Distance Classification method definition
+def Minimum_Distance_Classification(data, predict):
+    distances = []
+	k=12
+    j=0
+    for group in data:
+        euclidean_distance = math.sqrt((data[group][0]-predict[0])**2 +(data[group][1]-predict[1])**2 
+   								+(data[group][2]-predict[2])**2)
+        distances.append([euclidean_distance,group])
+    votes = [i[1] for i in sorted(distances)[:k]]
+    # we can also return the 1st element in the votes as it is sorted list of distances
+    # this command does the same work
+    vote_result = Counter(votes).most_common(1)[0][0]
+    return vote_result
+
+=======================================================================================================
+-- Temporary Variables:
+--   @start_time - Counter for file processing time
+-- 	 @file       - Counter of file number
+-- 	 @j, @row, @i- Counters for loop
+--   @df  		 - Contains file data
+--	 @df1		 - Contains copy of df for commpuation
+--	 @dataset 	 - Dictionary of predefined (key, value) pairs
+--		           key   :- Class Name
+--			       value :- Class Color Code
+--	 @X			 - List of Class for Classified points
+--	 @list_values- List for computation
+-- 	 @column1,	 - Temporary variables for Computation
+--	 @my_table
+--
+-- Optimization variables:
+--	 @count_city - Count of City Class 
+--	 @count_slum - Count of Slum Class
+=======================================================================================================
+
+
+# start time of file processing
+start_time = time.time()
+print("Start Time: ---%s---" % (start_time))
+
+# 3019 files contains 11,267 rows of co-ordinate details each. (3756 pixels in a row)
+# file processing starts from file 1.
+# we open one file instead of reading as reading each file using file read function takes 267 sec for processing it completely
+# whereas with opening, it takes only 8 sec to process a complete file
+
+
+
+for file in range(1,3019):
+    with open(str(file) + '.asc') as f:
+        #inserting file data in dataframe 
+        df = pd.read_table(f, sep='\t', index_col=None , header=0, delim_whitespace=True,   lineterminator='\n')
+
+    print(file)
+    # naming columns and then selecting all rows and only 2nd ,3rd ,4th column values i.e. color bands and manipulating their values depending on the class values
+    #drops index column which got added by default
+    # by default, we get float values but we need to convet them to int type
+    df.columns =  ['X' , 'Y' , 'B1' , 'B2' , 'B3']
+    df1 = df.iloc[:,2:5]
+    df1 = df1.reset_index(drop=True)
+    df1= df1.astype(int).values.tolist()
+    # dataset is class values calculated by taking median of 11 mode values selected from each type of class segment
+    # X is a list that holds class name for each row
+    # We append this list as a column to the dataframe
+    # We cannot append this list directly so we need to convert it into a dataframe 
+    dataset = {'w':[77,70,89], 'veg':[115,94,266], 'veg1':[97,91,118], 'fellow':[156,172,207],'fellow1':[149,160,201], 'hill':[115,118,168] , 'hill1':[99,97,143] ,
+                'city' : [141,142,162] ,'city1' : [147,152,163],'slum' :[131,131,146] , 'slum1' :[134,136,150]}
+    X = []
+    for j in df1:
+        result = Minimum_Distance_Classification(dataset, j)
+        X.append(result)
+
+    list_values = X
+    column1=pd.DataFrame({'Class':list_values})
+    my_table = pd.concat([df, column1], axis=1) #concat class column to the csv
+    df = my_table
+    # Now we locate all the rows having a particular class value and change the Band values for that class value
+    # to indicate that this pixel value belongs to this class and pixels of one class are represented by same color
+    # Changing the RGB values with respect to Class Value
+    df.loc[ df['Class'] == 'slum' ,'B1'] = 0
+    df.loc[ df['Class'] == 'slum' ,'B2'] = 111
+    df.loc[ df['Class'] == 'slum' , 'B3'] = 255
+    #orange color for slums 
+    #elif df.loc[row]['Class'] == 'city':
+    #voilet for city
+    df.loc[ df['Class'] == 'city' ,'B1'  ] = 110
+    df.loc[ df['Class'] == 'city' ,'B2'] = 0
+    df.loc[ df['Class'] == 'city' , 'B3'] = 110
+    #elif df.loc[row]['Class'] == 'city1':
+    #cyan for city1
+    df.loc[ df['Class'] == 'city1' ,'B1'  ] = 255
+    df.loc[ df['Class'] == 'city1' ,'B2'] = 255
+    df.loc[ df['Class'] == 'city1' , 'B3'] =0
+
+    #elif df.loc[row]['Class'] == 'hill':
+    #brown color for hills
+    df.loc[ df['Class'] == 'hill','B1'] = 44
+    df.loc[ df['Class'] == 'hill','B2'] = 88
+    df.loc[ df['Class'] == 'hill','B3'] = 164
+    #elif df.loc[row]['Class'] == 'hill1':
+    #hill1 green color with some blues mixed
+    df.loc[ df['Class'] == 'hill1','B1'] =41 
+    df.loc[ df['Class'] == 'hill1','B2'] = 97
+    df.loc[ df['Class'] == 'hill1','B3'] = 0
+
+
+    #elif df.loc[row]['Class'] == 'fellow1':
+    #fellow lands with white color
+    df.loc[ df['Class'] == 'fellow1','B1'] = 255
+    df.loc[ df['Class'] == 'fellow1','B2'] = 255
+    df.loc[ df['Class'] == 'fellow1' ,'B3'] = 255
+
+    #elif df.loc[row]['Class'] == 'fellow':
+    #fellow lands with yellow color
+    df.loc[ df['Class'] == 'fellow','B1'] = 0
+    df.loc[ df['Class'] == 'fellow','B2'] = 255
+    df.loc[ df['Class'] == 'fellow' ,'B3'] = 255
+
+    #elif df.loc[row]['Class'] == 'veg':
+    #red color for vegetation
+    df.loc[ df['Class'] == 'veg' ,'B1'] = 0
+    df.loc[ df['Class'] == 'veg' ,'B2'] = 0
+    df.loc[ df['Class'] == 'veg' , 'B3'] = 255
+    #elif df.loc[row]['Class'] == 'veg1':
+    #dark red for vegetation class 1
+    df.loc[ df['Class'] == 'veg1' ,'B1'] = 37
+    df.loc[ df['Class'] == 'veg1' ,'B2'] = 0
+    df.loc[ df['Class'] == 'veg1' , 'B3'] = 144
+    #elif df.loc[row]['Class'] == 'w':
+
+    df.loc[ df['Class'] == 'w' ,'B1'] = 97
+    df.loc[ df['Class'] == 'w' ,'B2'] = 0
+    df.loc[ df['Class'] == 'w' , 'B3'] =0
+    #blue color for water
+    #else df.loc[row]['Class'] == 'slum1':
+
+    df.loc[ df['Class'] == 'slum1' ,'B1'] = 113
+    df.loc[ df['Class'] == 'slum1' ,'B2'] = 184
+    df.loc[ df['Class'] == 'slum1' , 'B3'] = 255
+    #slum1 beige color
+       
+
+    # Now we want to reclassify the misclassified neighbouring pixels to the pixel having class value of slum or city
+    # To do this we consider a 3x3 box around those pixels in which the (2,2) index position is classified as city or slum.
+    # In this box, if 5 or more pixels are of city or slum then all pixels of the 3x3 block are reclassified to city or slum respectively.
+    
+    for row in range(3764, 7522	, 3):
+            count_slum = 0
+            count_city = 0
+            ## Check if column value is slum or not
+            if df.loc[row]['Class'] == 'slum' or df.loc[row]['Class'] == 'slum1':
+                    ## check if previous column is also having same class 	
+                    ## value
+                    for i in range(0, 3):
+                            
+                            if df.loc[row-3761 + i-2]['Class'] == 'slum' or df.loc[row-3761 + i-2]['Class'] == 'slum1':
+                                    count_slum+=1
+                            else:
+                                    pass
+                    
+                    for i in range(0, 3):
+                            if df.loc[row + i-1]['Class'] == 'slum' or df.loc[row + i-1]['Class'] == 'slum1':
+                                    count_slum+=1
+                            else:
+                                    pass
+                    
+                    for i in range(0, 3):
+                            if df.loc[row+3761 + i]['Class'] == 'slum' or df.loc[row + 3761 + i]['Class'] == 'slum1':
+                                    count_slum+=1
+                            else:
+                                    pass
+
+                    # if more than 5 count values are slum then change the box value to slum
+                    # print(count_slum)
+                    # set slum1 and slum with single name slum and same color
+                    if count_slum>=5:
+                            df.loc[ df['Class'] == 'slum' ,'Class'] = 'slum'
+                            df.loc[ df['Class'] == 'slum1' ,'Class'] = 'slum'
+                            df.loc[ df['Class'] == 'slum' ,'B1'] = 0
+                            df.loc[ df['Class'] == 'slum' ,'B2'] = 111
+                            df.loc[ df['Class'] == 'slum' , 'B3'] = 255
+
+            ## Check if a box belongs to city or not
+            elif df.loc[row]['Class'] == 'city' or df.loc[row]['Class'] == 'city1':
+                    ## check if previous column is also having same class 	
+                    ## value
+                    for i in range(0, 3):
+                            if df.loc[row-3761 + i-2]['Class'] == 'city' or df.loc[row - 3761 + i -2]['Class'] == 'city1':
+                                    count_city+=1
+                            else:
+                                    pass
+                    
+                    for i in range(0, 3):
+                            if df.loc[row + i-1]['Class'] == 'city' or df.loc[row + i - 1]['Class'] == 'city1':
+                                    count_city+=1
+                            else:
+                                    pass
+                    
+                    for i in range(0, 3):
+                            
+                            if df.loc[row+3761 + i]['Class'] == 'city' or df.loc[row + 3761 + i]['Class'] == 'city1':
+                                    count_city+=1
+                            else:
+                                    pass
+
+                    # if more than 5 count values are city then change the box value to city
+                    # print(count_city)
+                    # set city1 and city with single name city and same color
+
+                    if count_city>=5:
+                            df.loc[ df['Class'] == 'city' ,'Class'] = 'city'
+                            df.loc[ df['Class'] == 'city1' ,'Class'] = 'city'
+                            df.loc[ df['Class'] == 'city' ,'B1'] = 255
+                            df.loc[ df['Class'] == 'city' ,'B2'] = 255
+                            df.loc[ df['Class'] == 'city' , 'B3'] = 0
+            else:
+                    pass
+
+    # Drop the Class Column and write back to same csv file
+    df = df.drop(['Class'], axis = 1)
+    df = df.reset_index(drop=True)
+    df.to_csv('akhand hoshiyar' + str(file) + '.asc',sep=' ',index_label=None ,  index=False, header=False)
+    # Prints the time it took to process the file.
+    print(time.time() - start_time)
